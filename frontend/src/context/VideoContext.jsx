@@ -100,6 +100,12 @@ export const VideoSocketContextProvider = ({ children }) => {
 
     socket.on("room-created", enterRoom);
     socket.on("get-user", fetchParticipants);
+
+    // Cleanup on unmount
+    return () => {
+            if (user) user.destroy();
+            if (stream) stream.getTracks().forEach(track => track.stop());
+    };
   }, []);
 
   useEffect(() => {
@@ -120,6 +126,11 @@ export const VideoSocketContextProvider = ({ children }) => {
     });
 
     socket.emit("ready");
+
+    return () => {
+            socket.off("user-joined");
+            socket.off("call");
+        };
   }, [user, stream]);
 
   return (
