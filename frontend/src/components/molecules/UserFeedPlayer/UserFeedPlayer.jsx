@@ -15,7 +15,7 @@ const UserFeedPlayer = ({ stream }) => {
             className="w-full h-full object-cover bg-gray-800"
             muted
             autoPlay
-            playsInline
+            
         />
     );
 };
