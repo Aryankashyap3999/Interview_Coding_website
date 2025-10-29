@@ -86,7 +86,11 @@ export const VideoSocketContextProvider = ({ children }) => {
     });
 
     setUser(newUser);
-    fetchUserFeed();
+
+
+    if (window.location.pathname.startsWith("/room")) {
+      fetchUserFeed();
+    }
 
     const enterRoom = ({ roomId }) => navigate(`/room/${roomId}`);
     socket.on("room-created", enterRoom);

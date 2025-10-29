@@ -70,6 +70,15 @@ const Room = () => {
 
   const isSolo = participantCount === 1;
 
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        console.log("Stopped camera and microphone after leaving the room");
+      }
+    };
+  }, [stream]);
+
   return (
     <>
      <CreateProjectModal
