@@ -2,50 +2,51 @@ import { addPeerActions, removePeerActions } from "@/Actions/peerActions";
 import { peerReducer } from "@/Reducer/peerReducer";
 import Peer from "peerjs";
 import { createContext, useEffect, useReducer, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import SocketIoClient from "socket.io-client";
 import { v4 as UUIDv4 } from "uuid";
 
 const ws_server = import.meta.env.VITE_WS_Server;
 const VideoSocketContext = createContext();
-const socket = SocketIoClient(ws_server);
+const socket = SocketIoClient(ws_server, { transports: ["websocket"] });
 
 export const VideoSocketContextProvider = ({ children }) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState();
-  const [stream, setStream] = useState();
+  const [user, setUser] = useState(null);
+  const [stream, setStream] = useState(null);
   const [screenStream, setScreenStream] = useState(null);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [peers, dispatch] = useReducer(peerReducer, {});
 
-  const fetchParticipants = ({ roomId, participants }) => {
-    console.log("Participants:", roomId, participants);
-  };
-
+  // Get camera feed
   const fetchUserFeed = async () => {
-    const newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    setStream(newStream);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      setStream(newStream);
+    } catch (err) {
+      console.error("Error accessing camera/mic:", err);
+    }
   };
 
+  // Handle screen sharing toggle
   const handleScreenShare = useCallback(async () => {
     if (isSharingScreen) {
-      // Stop screen sharing
-      screenStream.getTracks().forEach((track) => track.stop());
+      screenStream?.getTracks().forEach((t) => t.stop());
       setScreenStream(null);
       setIsSharingScreen(false);
 
-      // Revert to camera stream
-      Object.values(user.connections).forEach((connectionArray) => {
-        connectionArray.forEach((conn) => {
+      // revert to webcam
+      Object.values(user.connections).forEach((connections) => {
+        connections.forEach((conn) => {
           const sender = conn.peerConnection
             .getSenders()
             .find((s) => s.track?.kind === "video");
-          if (sender) {
-            sender.replaceTrack(stream.getVideoTracks()[0]);
-          }
+          if (sender) sender.replaceTrack(stream.getVideoTracks()[0]);
         });
       });
-      console.log("Stopped screen sharing.");
       return;
     }
 
@@ -55,34 +56,27 @@ export const VideoSocketContextProvider = ({ children }) => {
         audio: false,
       });
 
+      const screenTrack = displayStream.getVideoTracks()[0];
       setScreenStream(displayStream);
       setIsSharingScreen(true);
 
-      const screenTrack = displayStream.getVideoTracks()[0];
-
-      // Replace video track in all Peer connections
-      Object.values(user.connections).forEach((connectionArray) => {
-        connectionArray.forEach((conn) => {
+      Object.values(user.connections).forEach((connections) => {
+        connections.forEach((conn) => {
           const sender = conn.peerConnection
             .getSenders()
             .find((s) => s.track?.kind === "video");
-          if (sender) {
-            sender.replaceTrack(screenTrack);
-          }
+          if (sender) sender.replaceTrack(screenTrack);
         });
       });
 
-      // Stop sharing automatically if user clicks "Stop Sharing"
-      screenTrack.onended = () => {
-        handleScreenShare();
-      };
-
-      console.log("Started screen sharing.");
+      // Automatically stop when user clicks "Stop Sharing"
+      screenTrack.onended = () => handleScreenShare();
     } catch (err) {
-      console.error("Error while sharing screen:", err);
+      console.error("Error during screen sharing:", err);
     }
   }, [isSharingScreen, user, stream, screenStream]);
 
+  // Initialize PeerJS and join logic
   useEffect(() => {
     const userId = UUIDv4();
     const newUser = new Peer(userId, {
@@ -94,23 +88,19 @@ export const VideoSocketContextProvider = ({ children }) => {
     setUser(newUser);
     fetchUserFeed();
 
-    const enterRoom = ({ roomId }) => {
-      navigate(`/room/${roomId}`);
-    };
-
+    const enterRoom = ({ roomId }) => navigate(`/room/${roomId}`);
     socket.on("room-created", enterRoom);
-    socket.on("get-user", fetchParticipants);
 
-    // Cleanup on unmount
     return () => {
-            if (user) user.destroy();
-            if (stream) stream.getTracks().forEach(track => track.stop());
+      socket.off("room-created", enterRoom);
     };
-  }, []);
+  }, [navigate]);
 
+  // Main room logic (call handling)
   useEffect(() => {
     if (!user || !stream) return;
 
+    // When another user joins
     socket.on("user-joined", ({ peerId }) => {
       const call = user.call(peerId, stream);
       call.on("stream", (peerStream) => {
@@ -118,6 +108,7 @@ export const VideoSocketContextProvider = ({ children }) => {
       });
     });
 
+    // When someone calls you
     user.on("call", (call) => {
       call.answer(stream);
       call.on("stream", (peerStream) => {
@@ -125,13 +116,33 @@ export const VideoSocketContextProvider = ({ children }) => {
       });
     });
 
+    socket.on("user-left", ({ peerId }) => {
+        console.log("Peer left:", peerId);
+        dispatch(removePeerActions(peerId)); // remove from reducer
+    });
+
+
     socket.emit("ready");
 
     return () => {
-            socket.off("user-joined");
-            socket.off("call");
-        };
+      socket.off("user-joined");
+      user.off("call");
+    };
   }, [user, stream]);
+
+  // Handle tab close
+  const { id } = useParams();
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (user && id) {
+        socket.emit("delete-user", { roomId: id, peerId: user.id });
+        user.destroy();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [user, id]);
 
   return (
     <VideoSocketContext.Provider

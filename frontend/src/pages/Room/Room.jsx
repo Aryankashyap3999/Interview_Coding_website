@@ -2,7 +2,6 @@ import React, { useContext, useEffect, useState } from "react";
 import VideoSocketContext from "@/context/VideoContext";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card } from "@/components/ui/card";
 import UserFeedPlayer from "@/components/molecules/UserFeedPlayer/UserFeedPlayer";
 import {
   Mic,
@@ -12,34 +11,13 @@ import {
   Monitor,
   MonitorStop,
   LogOut,
+  BadgePlus
 } from "lucide-react";
+import { LocalPreview } from "@/components/atoms/LocalPreview/LocalPreview";
+import { useCreateProjectModal } from "@/hooks/context/useCreateProjectModal";
+import { CreateProjectModal } from "@/components/organisms/Modals/CreateProjectModal";
 
-const LocalPreview = ({ stream, isSharingScreen }) => (
-  <motion.div
-    drag
-    dragMomentum={false}
-    dragElastic={0.1}
-    initial={{ opacity: 0, y: 30, scale: 0.9 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.8 }}
-    transition={{ duration: 0.4, ease: "easeOut" }}
-    className="fixed bottom-24 right-8 z-50 cursor-grab active:cursor-grabbing"
-  >
-    <Card className="relative w-48 h-32 sm:w-56 sm:h-36 md:w-64 md:h-40 overflow-hidden rounded-xl border border-slate-700/50 shadow-2xl bg-slate-900/90 backdrop-blur-md hover:shadow-slate-800/50">
-      <UserFeedPlayer stream={stream} />
-      <div className="absolute bottom-1.5 left-2 bg-slate-900/80 backdrop-blur-md text-xs text-white font-medium px-2 py-0.5 rounded-md flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-        You
-      </div>
 
-      {isSharingScreen && (
-        <div className="absolute top-1.5 right-2 bg-yellow-400/90 text-[10px] text-black font-bold px-2 py-0.5 rounded-md shadow-md">
-          Sharing Screen
-        </div>
-      )}
-    </Card>
-  </motion.div>
-);
 
 const Room = () => {
   const { id } = useParams();
@@ -55,9 +33,17 @@ const Room = () => {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
 
+  const {openCreateProjectModal, setOpenCreateProject, isClicked} = useCreateProjectModal();
+
+  // when closing/leaving
   function handleCloseTab() {
     socket.emit("delete-user", { roomId: id, peerId: user?._id });
     navigate("/home");
+  }
+
+  function handleProjectCreation () {
+    setOpenCreateProject(true);
+    console.log("CreateProjectModal is: ", openCreateProjectModal);
   }
 
   useEffect(() => {
@@ -79,10 +65,20 @@ const Room = () => {
   };
 
   const peerIds = Object.keys(peers);
-  const mainFeedId = peerIds.find((id) => peers[id].isScreenSharing) || peerIds[0]; // screen share first
+  const mainFeedId = peerIds.find((id) => peers[id].isScreenSharing) || peerIds[0];
   const otherFeeds = peerIds.filter((id) => id !== mainFeedId);
 
+  const isSolo = participantCount === 1;
+
   return (
+    <>
+     <CreateProjectModal
+      openCreateProjectModal={openCreateProjectModal}
+      setOpenCreateProject={setOpenCreateProject}
+      isClicked={isClicked}
+      setIsClicked={isClicked}
+     />
+    
     <div className="relative flex flex-col min-h-screen bg-slate-900 text-white overflow-hidden">
       {/* Top Bar */}
       <div className="flex justify-between items-center p-4 bg-slate-800/60 backdrop-blur-lg border-b border-slate-700/50">
@@ -98,48 +94,67 @@ const Room = () => {
       </div>
 
       {/* Main Display */}
-      <div className="flex-1 relative p-4 flex flex-col gap-4 md:flex-row">
-        {/* Main feed (large) */}
-        {mainFeedId && (
+      <div className="flex-1 relative p-4 flex flex-col gap-4 md:flex-row items-center justify-center">
+        {isSolo ? (
+          // 👤 Solo Full Screen View
           <motion.div
-            layout
-            key={mainFeedId}
+            key="solo"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4 }}
-            className="flex-1 rounded-2xl overflow-hidden border border-slate-700/50 shadow-xl bg-slate-800/80 relative"
+            transition={{ duration: 0.5 }}
+            className="w-full h-full max-w-5xl max-h-[80vh] rounded-2xl overflow-hidden border border-slate-700/50 shadow-xl bg-slate-800/80 flex items-center justify-center"
           >
-            <UserFeedPlayer stream={peers[mainFeedId].stream} />
-            <div className="absolute bottom-2 left-2 bg-slate-900/70 text-xs px-2 py-1 rounded-md">
-              {mainFeedId.slice(0, 6)}...
+            <UserFeedPlayer stream={stream} />
+            <div className="absolute bottom-3 left-3 bg-slate-900/70 text-xs px-3 py-1 rounded-md">
+              You
             </div>
           </motion.div>
-        )}
-
-        {/* Other participants (small side column) */}
-        <div className="flex md:flex-col flex-wrap gap-3 justify-center md:w-1/4">
-          <AnimatePresence>
-            {otherFeeds.map((peerId) => (
+        ) : (
+          // 👥 Multi-user layout
+          <>
+            {/* Main feed */}
+            {mainFeedId && (
               <motion.div
-                key={peerId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                transition={{ duration: 0.3 }}
-                className="w-40 h-28 rounded-xl overflow-hidden border border-slate-700/50 shadow-lg bg-slate-800"
+                layout
+                key={mainFeedId}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="flex-1 rounded-2xl overflow-hidden border border-slate-700/50 shadow-xl bg-slate-800/80 relative"
               >
-                <UserFeedPlayer stream={peers[peerId].stream} />
-                <div className="absolute bottom-1 left-2 bg-slate-900/70 text-xs px-2 py-0.5 rounded-md">
-                  {peerId.slice(0, 6)}...
+                <UserFeedPlayer stream={peers[mainFeedId].stream} />
+                <div className="absolute bottom-2 left-2 bg-slate-900/70 text-xs px-2 py-1 rounded-md">
+                  {mainFeedId.slice(0, 6)}...
                 </div>
               </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+            )}
+
+            {/* Other feeds */}
+            <div className="flex md:flex-col flex-wrap gap-3 justify-center md:w-1/4">
+              <AnimatePresence>
+                {otherFeeds.map((peerId) => (
+                  <motion.div
+                    key={peerId}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-40 h-28 rounded-xl overflow-hidden border border-slate-700/50 shadow-lg bg-slate-800 relative"
+                  >
+                    <UserFeedPlayer stream={peers[peerId].stream} />
+                    <div className="absolute bottom-1 left-2 bg-slate-900/70 text-xs px-2 py-0.5 rounded-md">
+                      {peerId.slice(0, 6)}...
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Floating Local Preview */}
-      <LocalPreview stream={stream} isSharingScreen={isSharingScreen} />
+      {/* Local Preview */}
+      {!isSolo && <LocalPreview stream={stream} isSharingScreen={isSharingScreen} />}
 
       {/* Control Bar */}
       <div className="flex justify-center items-center gap-6 py-4 bg-slate-800/60 backdrop-blur-lg border-t border-slate-700/50">
@@ -178,8 +193,16 @@ const Room = () => {
         >
           <LogOut size={22} />
         </button>
+
+        <button
+          onClick={handleProjectCreation}
+          className="p-3 rounded-full bg-green-600 hover:bg-green-700 transition-all duration-200"
+        >
+          <BadgePlus size={22} />
+        </button>
       </div>
     </div>
+    </>
   );
 };
 

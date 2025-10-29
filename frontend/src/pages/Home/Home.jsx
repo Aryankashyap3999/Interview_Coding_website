@@ -163,6 +163,7 @@ export default function Home() {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">24/7 Available</h3>
               <p className="text-gray-600">Connect anytime, anywhere, on any device</p>
             </div>
+            
           </div>
         </div>
       </main>

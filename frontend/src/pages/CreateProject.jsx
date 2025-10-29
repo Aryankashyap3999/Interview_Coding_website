@@ -18,7 +18,7 @@ export function CreateProject() {
     const { 
         projects, 
         isLoading: isLoadingProjects,
-        setProjects, // Your existing method - now uses user service by default
+        setProjects, 
     } = useGetProjectsStore();
     const { auth, logout } = useAuth(); 
     const [projectName, setProjectName] = useState("");
@@ -28,7 +28,6 @@ export function CreateProject() {
     const [showProjectsModal, setShowProjectsModal] = useState(false);
     const navigate = useNavigate();
 
-    // Update these to use auth data
     const isSignedIn = !!auth?.user && !auth?.isLoading;
     const isLoading = auth?.isLoading;
     const userName = auth?.user?.username || "Guest";
@@ -37,7 +36,6 @@ export function CreateProject() {
 
     const projectTypes = projectTypesArray;
 
-    // Authentication guard function with better UX
     const requireAuth = (actionName = 'perform this action') => {
         if (isLoading) {
             toast.info('Please wait while we check your authentication status...');
