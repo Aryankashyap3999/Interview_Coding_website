@@ -40,7 +40,7 @@ const Room = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const { openCreateProjectModal, setOpenCreateProject, isClicked } = useCreateProjectModal();
+  const { openCreateProjectModal, setOpenCreateProject } = useCreateProjectModal();
 
   // Scroll to bottom when new message
   const scrollToBottom = () => {
@@ -124,8 +124,6 @@ const Room = () => {
       <CreateProjectModal
         openCreateProjectModal={openCreateProjectModal}
         setOpenCreateProject={setOpenCreateProject}
-        isClicked={isClicked}
-        setIsClicked={isClicked}
       />
 
       <div className="relative flex flex-col min-h-screen bg-slate-900 text-white overflow-hidden">

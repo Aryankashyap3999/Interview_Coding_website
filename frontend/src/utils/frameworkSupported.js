@@ -1,2 +1,2 @@
-export const currentframeworks = ["REACT", "NEXT"]
+export const currentframeworks = ["react", "next"]
 
